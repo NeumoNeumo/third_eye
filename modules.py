@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
+import torch
 
 class DWUnit(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -102,7 +103,17 @@ class YuNet(nn.Module):
     def forward(self, x):
         c3, c4, c5 = self.backbone(x)
         ps = self.fpn(c3, c4, c5)
-        outputs = []
+        cls_preds, obj_preds, bbox_preds = [], [], []
         for i, p in enumerate(ps):
-            outputs.append(self.heads[i](p))
-        return outputs
+            cls_pred, obj_pred, bbox_pred = self.heads[i](p)
+            cls_pred = cls_pred.permute(0, 2, 3, 1).reshape(x.size(0), -1, cls_pred.size(1))
+            obj_pred = obj_pred.permute(0, 2, 3, 1).reshape(x.size(0), -1, 1)
+            bbox_pred = bbox_pred.permute(0, 2, 3, 1).reshape(x.size(0), -1, 4)
+            cls_preds.append(cls_pred)
+            obj_preds.append(obj_pred)
+            bbox_preds.append(bbox_pred)
+
+        cls_preds = torch.cat(cls_preds, dim=1)
+        obj_preds = torch.cat(obj_preds, dim=1)
+        bbox_preds = torch.cat(bbox_preds, dim=1)
+        return cls_preds, obj_preds, bbox_preds
